@@ -1,7 +1,6 @@
 #pragma once
-
-#include "cell.h"
 #include "common.h"
+#include "cell.h"
 
 #include <functional>
 

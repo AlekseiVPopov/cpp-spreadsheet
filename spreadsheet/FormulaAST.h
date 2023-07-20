@@ -26,7 +26,7 @@ public:
 
     ~FormulaAST();
 
-    double Execute(std::function<double(Position)> &args) const;
+    double Execute(const std::function<double(Position)> &args) const;
 
     void PrintCells(std::ostream &out) const;
 

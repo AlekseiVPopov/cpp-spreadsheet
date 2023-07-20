@@ -1,7 +1,6 @@
 #include "cell.h"
 #include "sheet.h"
 
-#include <cassert>
 #include <iostream>
 #include <string>
 #include <optional>
@@ -11,35 +10,111 @@
 
 // Реализуйте следующие методы
 
+class Cell::Impl {
+public:
+    Impl(Sheet *sheet, Cell *cell) : sheet_(sheet), cell_(cell) {}
 
-void Cell::Set(Position pos, std::string text) {
-    position_ = pos;
+    virtual Value GetValue() const = 0;
+
+    virtual std::string GetText() const = 0;
+
+    virtual std::vector<Position> GetReferencedCells() const;
+
+    virtual std::vector<Cell *> GetReferencedCellsPtr() const;
+
+    virtual bool HasCircularDependency() const;
+
+    virtual void ClearCache() const;
+
+    virtual void RemoveDependencies() const;
+
+    virtual ~Impl() = default;
+
+protected:
+    Sheet *sheet_;
+    Cell *cell_;
+};
+
+class Cell::EmptyImpl : public Impl {
+public:
+    EmptyImpl(Sheet *sheet, Cell *cell) : Impl(sheet, cell) {}
+
+    Value GetValue() const override;
+
+    std::string GetText() const override;
+
+};
+
+class Cell::TextImpl : public Impl {
+public:
+
+    explicit TextImpl(std::string text, Sheet *sheet, Cell *cell) : Impl(sheet, cell), text_(std::move(text)) {}
+
+    Value GetValue() const override;
+
+    std::string GetText() const override;
+
+private:
+    std::string text_;
+};
+
+
+class Cell::FormulaImpl : public Impl {
+public:
+
+    FormulaImpl(std::string text, Sheet *sheet, Cell *cell);
+
+    Value GetValue() const override;
+
+    std::string GetText() const override;
+
+    std::vector<Position> GetReferencedCells() const override;
+
+    std::vector<Cell *> GetReferencedCellsPtr() const override;
+
+    bool HasCircularDependency() const override;
+
+    void ClearCache() const override;
+
+    void RemoveDependencies() const override;
+
+private:
+    std::unique_ptr<FormulaInterface> formula_ptr_;
+    std::deque<Cell *> depend_on_;
+    mutable std::optional<Cell::Value> cache_;
+};
+
+Cell::Cell(Sheet &sheet, Position pos) : sheet_(sheet), position_(pos),
+                                         impl_(std::make_unique<EmptyImpl>(&sheet_, this)) {}
+
+Cell::~Cell() = default;
+
+void Cell::Set(std::string text) {
     if (text == impl_->GetText()) return;
 
-    if (IsReferenced()) {
-        ClearCache(false);
-    }
-    impl_->RemoveDependencies();
+    try {
+        std::unique_ptr<Cell::Impl> temp;
 
-    if (text.empty()) {
-        impl_ = std::make_unique<EmptyImpl>(&sheet_, this);
-        return;
+        if (text.empty()) {
+            temp = std::make_unique<EmptyImpl>(&sheet_, this);
+        } else if (text.size() > 1 && text.at(0) == FORMULA_SIGN) {
+            temp = std::make_unique<FormulaImpl>(std::move(text), &sheet_, this);
+        } else {
+            temp = std::make_unique<TextImpl>(std::move(text), &sheet_, this);
+        }
 
-    } else if (text.size() > 1 && text.at(0) == FORMULA_SIGN) {
-        impl_ = std::make_unique<FormulaImpl>(std::move(text), &sheet_, this);
-        return;
-    } else {
-        impl_ = std::make_unique<TextImpl>(std::move(text), &sheet_, this);
-        return;
+        if (IsReferenced()) {
+            ClearCache(false);
+        }
+        impl_->RemoveDependencies();
+        impl_ = std::move(temp);
+    } catch (...) {
+        throw;
     }
 }
 
 void Cell::Clear() {
-    if (IsReferenced()) {
-        ClearCache(false);
-    }
-    impl_->RemoveDependencies();
-    impl_ = std::make_unique<EmptyImpl>(&sheet_, this);
+    Set("");
 }
 
 Cell::Value Cell::GetValue() const { return impl_->GetValue(); }
@@ -134,9 +209,9 @@ Cell::FormulaImpl::FormulaImpl(std::string text, Sheet *sheet, Cell *cell) :
 
     if (!cell_->affect_on_.empty()) {
 
-        std::unordered_set<const Cell *> visited;
-        std::queue<const Cell *> queue;
-        std::deque<const Cell *> affected_queue;
+        std::unordered_set<Cell *> visited;
+        std::queue<Cell *> queue;
+        std::deque<Cell *> affected_queue;
 
         for (const auto &d: cell_->affect_on_) {
             affected_queue.push_back(d);
@@ -144,14 +219,14 @@ Cell::FormulaImpl::FormulaImpl(std::string text, Sheet *sheet, Cell *cell) :
         }
 
         while (!queue.empty()) {
-            const auto current_cell = queue.front();
+            auto current_cell = queue.front();
             if (current_cell == cell_) {
                 queue.pop();
                 continue;
             }
             visited.emplace(current_cell);
 
-            const auto parent_affected = current_cell->GetAffectOn();
+            auto parent_affected = current_cell->GetAffectOn();
             for (const auto &affected: parent_affected) {
                 if (!visited.count(affected)) {
                     queue.push(affected);
@@ -180,8 +255,8 @@ void Cell::FormulaImpl::RemoveDependencies() const {
     }
 }
 
-std::vector<const Cell *> Cell::FormulaImpl::GetReferencedCellsPtr() const {
-    return std::vector<const Cell *>{depend_on_.begin(), depend_on_.end()};
+std::vector<Cell *> Cell::FormulaImpl::GetReferencedCellsPtr() const {
+    return std::vector<Cell *>{depend_on_.begin(), depend_on_.end()};
 }
 
 std::vector<Position> Cell::Impl::GetReferencedCells() const {
@@ -196,20 +271,20 @@ void Cell::Impl::ClearCache() const {}
 
 void Cell::Impl::RemoveDependencies() const {}
 
-std::vector<const Cell *> Cell::Impl::GetReferencedCellsPtr() const {
+std::vector<Cell *> Cell::Impl::GetReferencedCellsPtr() const {
     return {};
 }
 
-void Cell::AddAffected(const Cell *cell) const {
+void Cell::AddAffected(Cell *cell) {
     if (std::find(affect_on_.begin(), affect_on_.end(), cell) == affect_on_.end()) {
         affect_on_.push_back(cell);
-        for (const auto &ref_cell: impl_->GetReferencedCellsPtr()) {
+        for (auto &ref_cell: impl_->GetReferencedCellsPtr()) {
             ref_cell->AddAffected(cell);
         }
     }
 }
 
-void Cell::RemoveAffected(const Cell *cell) const {
+void Cell::RemoveAffected(Cell *cell) {
     (void) std::remove(affect_on_.begin(), affect_on_.end(), cell);
 }
 
@@ -222,6 +297,9 @@ void Cell::ClearCache(bool only_local) const {
     }
 }
 
-const std::deque<const Cell *> &Cell::GetAffectOn() const {
+const std::deque<Cell *> &Cell::GetAffectOn() {
     return affect_on_;
 }
+
+
+

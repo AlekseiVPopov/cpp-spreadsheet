@@ -80,7 +80,7 @@ namespace ASTImpl {
 
         virtual void DoPrintFormula(std::ostream &out, ExprPrecedence precedence) const = 0;
 
-        virtual double Evaluate(std::function<double(Position)> &args) const = 0;
+        virtual double Evaluate(const std::function<double(Position)> &args) const = 0;
 
         // higher is tighter
         virtual ExprPrecedence GetPrecedence() const = 0;
@@ -148,7 +148,7 @@ namespace ASTImpl {
                 }
             }
 
-            double Evaluate(std::function<double(Position)> &args) const override {
+            double Evaluate(const std::function<double(Position)> &args) const override {
                 switch (type_) {
                     case Add:
                         if (auto res = lhs_->Evaluate(args) + rhs_->Evaluate(args);
@@ -215,7 +215,7 @@ namespace ASTImpl {
                 return EP_UNARY;
             }
 
-            double Evaluate(std::function<double(Position)> &args) const override {
+            double Evaluate(const std::function<double(Position)> &args) const override {
                 switch (type_) {
                     case UnaryPlus:
                         return operand_->Evaluate(args);
@@ -252,7 +252,7 @@ namespace ASTImpl {
                 return EP_ATOM;
             }
 
-            double Evaluate(std::function<double(Position)> &args) const override {
+            double Evaluate(const std::function<double(Position)> &args) const override {
                 return args(*cell_);
             }
 
@@ -278,7 +278,7 @@ namespace ASTImpl {
                 return EP_ATOM;
             }
 
-            double Evaluate(std::function<double(Position)> &args) const override {
+            double Evaluate(const std::function<double(Position)> &args) const override {
                 return value_;
             }
 
@@ -435,7 +435,7 @@ void FormulaAST::PrintFormula(std::ostream &out) const {
     root_expr_->PrintFormula(out, ASTImpl::EP_ATOM);
 }
 
-double FormulaAST::Execute(std::function<double(Position)> &args) const {
+double FormulaAST::Execute(const std::function<double(Position)> &args) const {
     return root_expr_->Evaluate(args);
 }
 

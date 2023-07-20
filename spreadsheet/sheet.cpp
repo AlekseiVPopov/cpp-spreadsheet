@@ -1,7 +1,6 @@
-#include "sheet.h"
-
-#include "cell.h"
 #include "common.h"
+#include "sheet.h"
+#include "cell.h"
 
 #include <functional>
 #include <iostream>
@@ -9,14 +8,15 @@
 
 using namespace std::literals;
 
+
 void Sheet::SetCell(Position pos, std::string text) {
     if (!pos.IsValid()) { throw InvalidPositionException("Invalid position"); }
 
     auto pos_it = data_.find(pos);
     if (pos_it == data_.end()) {
-        pos_it = data_.emplace(pos, std::make_unique<Cell>(*this)).first;
+        pos_it = data_.emplace(pos, std::make_unique<Cell>(*this, pos)).first;
     }
-    pos_it->second->Set(pos, std::move(text));
+    pos_it->second->Set(std::move(text));
 
 }
 
@@ -39,7 +39,7 @@ void Sheet::ClearCell(Position pos) {
 
     if (const auto pos_it = data_.find(pos); pos_it != data_.end()) {
         pos_it->second->Clear();
-        data_.erase(pos_it);
+        if (!pos_it->second->IsReferenced()) { data_.erase(pos_it); }
     }
 
 }
