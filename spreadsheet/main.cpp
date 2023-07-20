@@ -349,6 +349,22 @@ namespace {
         ASSERT(caught);
         ASSERT_EQUAL(sheet->GetCell("M6"_pos)->GetText(), "Ready");
     }
+
+    void TestCacheConsistency() {
+        auto sheet = CreateSheet();
+        sheet->SetCell("F1"_pos, "=E1+E2");
+        sheet->SetCell("B1"_pos, "=A1");
+        sheet->SetCell("B2"_pos, "=A1");
+        sheet->SetCell("C1"_pos, "=B2");
+        sheet->SetCell("C2"_pos, "=B1");
+        sheet->SetCell("E2"_pos, "=C1+B1");
+        sheet->SetCell("E1"_pos, "=C2+B2");
+        ASSERT_EQUAL(sheet->GetCell("F1"_pos)->GetValue(), CellInterface::Value(0.0));
+        sheet->SetCell("A1"_pos, "1");
+
+        ASSERT_EQUAL(sheet->GetCell("F1"_pos)->GetValue(), CellInterface::Value(4.0));
+    }
+
 }  // namespace
 
 int main() {
@@ -372,5 +388,6 @@ int main() {
     RUN_TEST(tr, TestCellReferences);
     RUN_TEST(tr, TestFormulaIncorrect);
     RUN_TEST(tr, TestCellCircularReferences);
+    RUN_TEST(tr, TestCacheConsistency);
     return 0;
 }
