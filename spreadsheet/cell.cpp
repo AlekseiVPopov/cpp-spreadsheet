@@ -26,6 +26,8 @@ public:
 
     virtual void ClearCache() const;
 
+    virtual void AddDependencies() const;
+
     virtual void RemoveDependencies() const;
 
     virtual ~Impl() = default;
@@ -76,6 +78,8 @@ public:
 
     void ClearCache() const override;
 
+    void AddDependencies() const override;
+
     void RemoveDependencies() const override;
 
 private:
@@ -104,10 +108,11 @@ void Cell::Set(std::string text) {
         }
 
         if (IsReferenced()) {
-            ClearCache(false);
+            ClearCache();
         }
         impl_->RemoveDependencies();
         impl_ = std::move(temp);
+        impl_->AddDependencies();
     } catch (...) {
         throw;
     }
@@ -206,43 +211,6 @@ Cell::FormulaImpl::FormulaImpl(std::string text, Sheet *sheet, Cell *cell) :
     if (this->HasCircularDependency()) {
         throw CircularDependencyException("Formula has circular dependency");
     }
-
-    if (!cell_->affect_on_.empty()) {
-
-        std::unordered_set<Cell *> visited;
-        std::queue<Cell *> queue;
-        std::deque<Cell *> affected_queue;
-
-        for (const auto &d: cell_->affect_on_) {
-            affected_queue.push_back(d);
-            queue.push(d);
-        }
-
-        while (!queue.empty()) {
-            auto current_cell = queue.front();
-            if (current_cell == cell_) {
-                queue.pop();
-                continue;
-            }
-            visited.emplace(current_cell);
-
-            auto parent_affected = current_cell->GetAffectOn();
-            for (const auto &affected: parent_affected) {
-                if (!visited.count(affected)) {
-                    queue.push(affected);
-                    affected_queue.push_back(affected);
-                }
-            }
-            queue.pop();
-        }
-        for (const auto &dep_cell: depend_on_) {
-            for (const auto &affected: affected_queue) { dep_cell->AddAffected(affected); }
-        }
-    }
-
-    for (const auto dep_cell: depend_on_) {
-        dep_cell->AddAffected(cell_);
-    }
 }
 
 void Cell::FormulaImpl::ClearCache() const {
@@ -257,6 +225,12 @@ void Cell::FormulaImpl::RemoveDependencies() const {
 
 std::vector<Cell *> Cell::FormulaImpl::GetReferencedCellsPtr() const {
     return std::vector<Cell *>{depend_on_.begin(), depend_on_.end()};
+}
+
+void Cell::FormulaImpl::AddDependencies() const {
+    for (const auto dep_cell: depend_on_) {
+        dep_cell->AddAffected(cell_);
+    }
 }
 
 std::vector<Position> Cell::Impl::GetReferencedCells() const {
@@ -275,31 +249,22 @@ std::vector<Cell *> Cell::Impl::GetReferencedCellsPtr() const {
     return {};
 }
 
+void Cell::Impl::AddDependencies() const {}
+
 void Cell::AddAffected(Cell *cell) {
     if (std::find(affect_on_.begin(), affect_on_.end(), cell) == affect_on_.end()) {
-        affect_on_.push_back(cell);
-        for (auto &ref_cell: impl_->GetReferencedCellsPtr()) {
-            ref_cell->AddAffected(cell);
-        }
+        affect_on_.insert(cell);
     }
 }
 
 void Cell::RemoveAffected(Cell *cell) {
-    (void) std::remove(affect_on_.begin(), affect_on_.end(), cell);
+    affect_on_.erase(cell);
 }
 
-void Cell::ClearCache(bool only_local) const {
+void Cell::ClearCache() const {
     impl_->ClearCache();
-    if (!only_local) {
-        for (const auto &cell: affect_on_) {
-            cell->ClearCache(true);
-        }
+
+    for (const auto &cell: affect_on_) {
+        cell->ClearCache();
     }
 }
-
-const std::deque<Cell *> &Cell::GetAffectOn() {
-    return affect_on_;
-}
-
-
-

@@ -38,9 +38,7 @@ private:
 
     void RemoveAffected(Cell *cell);
 
-    const std::deque<Cell *> &GetAffectOn();
-
-    void ClearCache(bool only_local = true) const;
+    void ClearCache() const;
 
     class Impl;
 
@@ -53,6 +51,6 @@ private:
     Sheet &sheet_;
     Position position_;
     std::unique_ptr<Impl> impl_;
-    std::deque<Cell *> affect_on_;
+    std::unordered_set<Cell*> affect_on_;
 
 };

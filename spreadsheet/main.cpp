@@ -361,8 +361,11 @@ namespace {
         sheet->SetCell("E1"_pos, "=C2+B2");
         ASSERT_EQUAL(sheet->GetCell("F1"_pos)->GetValue(), CellInterface::Value(0.0));
         sheet->SetCell("A1"_pos, "1");
-
         ASSERT_EQUAL(sheet->GetCell("F1"_pos)->GetValue(), CellInterface::Value(4.0));
+        sheet->ClearCell("B1"_pos);
+        ASSERT_EQUAL(sheet->GetCell("F1"_pos)->GetValue(), CellInterface::Value(2.0));
+        sheet->ClearCell("A1"_pos);
+        ASSERT_EQUAL(sheet->GetCell("F1"_pos)->GetValue(), CellInterface::Value(0.0));
     }
 
 }  // namespace

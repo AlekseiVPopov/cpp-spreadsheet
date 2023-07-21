@@ -64,8 +64,7 @@ namespace {
     std::vector<Position> Formula::GetReferencedCells() const {
         auto cells = ast_.GetCells();
         cells.unique();
-        std::vector<Position> res{cells.begin(), cells.end()};
-        return res;
+        return std::vector<Position> {cells.begin(), cells.end()};
     }
 }  // namespace
 
