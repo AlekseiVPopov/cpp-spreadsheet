@@ -24,6 +24,8 @@ public:
 
     virtual bool HasCircularDependency() const;
 
+    virtual bool HasCache() const;
+
     virtual void ClearCache() const;
 
     virtual void AddDependencies() const;
@@ -75,6 +77,8 @@ public:
     std::vector<Cell *> GetReferencedCellsPtr() const override;
 
     bool HasCircularDependency() const override;
+
+    bool HasCache() const override;
 
     void ClearCache() const override;
 
@@ -233,6 +237,10 @@ void Cell::FormulaImpl::AddDependencies() const {
     }
 }
 
+bool Cell::FormulaImpl::HasCache() const {
+    return cache_.has_value();
+}
+
 std::vector<Position> Cell::Impl::GetReferencedCells() const {
     return {};
 }
@@ -251,6 +259,10 @@ std::vector<Cell *> Cell::Impl::GetReferencedCellsPtr() const {
 
 void Cell::Impl::AddDependencies() const {}
 
+bool Cell::Impl::HasCache() const {
+    return false;
+}
+
 void Cell::AddAffected(Cell *cell) {
     if (std::find(affect_on_.begin(), affect_on_.end(), cell) == affect_on_.end()) {
         affect_on_.insert(cell);
@@ -265,6 +277,10 @@ void Cell::ClearCache() const {
     impl_->ClearCache();
 
     for (const auto &cell: affect_on_) {
-        cell->ClearCache();
+        if (cell->HasCache()) cell->ClearCache();
     }
+}
+
+bool Cell::HasCache() const {
+    return impl_->HasCache();
 }

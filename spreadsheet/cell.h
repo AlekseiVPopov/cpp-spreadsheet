@@ -28,6 +28,8 @@ public:
 
     bool IsReferenced() const;
 
+    bool HasCache() const;
+
 private:
 
     std::vector<Position> GetReferencedCells() const override;
